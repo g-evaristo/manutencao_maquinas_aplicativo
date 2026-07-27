@@ -152,13 +152,13 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
 
     // Monta o JSON com os dados da máquina a ser cadastrada.
     final dadosMaquina = {
-      'NOME': nomeController.text.trim(),
-      'CODIGO': codigoController.text.trim(),
-      'DESCRICAO': descricaoController.text.trim(),
-      'MODELO': modeloController.text.trim(),
-      'FABRICANTE': fabricanteController.text.trim(),
-      'DATA_AQUISICAO': dataAquisicaoController.text.trim(),
-      'STATUS': statusMaquina,
+      'MAQUINA_NOME': nomeController.text.trim(),
+      'MAQUINA_CODIGO': codigoController.text.trim(),
+      'MAQUINA_DESCRICAO': descricaoController.text.trim(),
+      'MAQUINA_MODELO': modeloController.text.trim(),
+      'MAQUINA_FABRICANTE': fabricanteController.text.trim(),
+      'MAQUINA_DATA_AQUISICAO': dataAquisicaoController.text.trim(),
+      'MAQUINA_STATUS': statusMaquina,
       'FK_SETOR_ID': setorSelecionado,
       'FK_FUNCIONARIO_ID': funcionarioSelecionado,
     };
