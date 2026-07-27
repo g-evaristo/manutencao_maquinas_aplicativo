@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:convert'; // Importar pacote para converter dados JSON
+import 'package:http/http.dart'as http; // Importar pacote para realizar requisições HTTP
 
 class CadastroMaquinasPage extends StatefulWidget {
   const CadastroMaquinasPage({super.key});
 
   @override
-  State<CadastroMaquinasPage> createState() =>
-      _CadastroMaquinasPageState();
+  State<CadastroMaquinasPage> createState() => _CadastroMaquinasPageState();
 }
 
 class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
@@ -19,8 +20,8 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
   final dataAquisicaoController = TextEditingController();
 
   String? statusMaquina;
-  int? setorSelecionado;
-  int? funcionarioSelecionado;
+  String? setorSelecionado;
+  String? funcionarioSelecionado;
 
   final statusMaquinas = [
     'ATIVA',
@@ -28,25 +29,203 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
     'EM_MANUTENCAO',
   ];
 
-  final setores = [
-    {'id': 1, 'nome': 'Produção'},
-    {'id': 2, 'nome': 'Montagem'},
-    {'id': 3, 'nome': 'Embalagem'},
-    {'id': 4, 'nome': 'Qualidade'},
-    {'id': 5, 'nome': 'Expedição'},
-  ];
+  // Lista de setores recebida da API.
+  List<Map<String, dynamic>> setores = [];
 
-  final funcionarios = [
-    {'id': 1, 'nome': 'Carlos Oliveira'},
-    {'id': 2, 'nome': 'Mariana Santos'},
-    {'id': 3, 'nome': 'João Pereira'},
-    {'id': 4, 'nome': 'Fernanda Lima'},
-    {'id': 5, 'nome': 'Ricardo Almeida'},
-  ];
+  // Lista de funcionários recebida da API.
+  List<Map<String, dynamic>> funcionarios = [];
 
-  void salvar() {
-    if (formKey.currentState!.validate()) {
-      formKey.currentState!.save();
+  // Indica se os dados estão sendo enviados para a API.
+  bool salvando = false;
+
+  // Indica se os setores e funcionários estão sendo carregados.
+  bool carregandoDados = true;
+
+  // Armazena uma possível mensagem de erro ao carregar os dados.
+  String? erroCarregamento;
+
+  // Busca os setores e funcionários quando a página é aberta.
+  @override
+  void initState() {
+    super.initState();
+    carregarDados();
+  }
+
+  // Busca os setores e funcionários na API.
+  Future<void> carregarDados() async {
+    setState(() {
+      carregandoDados = true;
+      erroCarregamento = null;
+    });
+
+    try {
+      // Executa as duas requisições ao mesmo tempo.
+      final resultados = await Future.wait([
+        buscarSetores(),
+        buscarFuncionarios(),
+      ]);
+
+      setState(() {
+        setores = resultados[0];
+        funcionarios = resultados[1];
+      });
+    } catch (e) {
+      setState(() {
+        erroCarregamento = 'Erro ao carregar os dados: $e';
+      });
+    } finally {
+      setState(() {
+        carregandoDados = false;
+      });
+    }
+  }
+
+  // Busca a lista de setores na API.
+  Future<List<Map<String, dynamic>>> buscarSetores() async {
+    // Faz uma requisição HTTP do tipo GET para a API.
+    final response = await http.get(
+      Uri.parse(
+        'http://gabriel_evarist/manutencao_maquinas_api/public/api/setores',
+      ),
+      headers: {
+        'Accept': 'application/json',
+      },
+    );
+
+    // Verifica se a requisição foi realizada com sucesso.
+    if (response.statusCode != 200) {
+      throw Exception('Erro ${response.statusCode} ao buscar setores');
+    }
+
+    // Converte a resposta da API para JSON.
+    final resultado = jsonDecode(response.body);
+
+    // Obtém diretamente a lista armazenada na propriedade "dados".
+    final List<dynamic> dados = resultado['dados'];
+
+    // Converte os itens para uma lista de mapas.
+    return dados
+        .map(
+          (item) => Map<String, dynamic>.from(item),
+        )
+        .toList();
+  }
+
+  // Busca a lista de funcionários na API.
+  Future<List<Map<String, dynamic>>> buscarFuncionarios() async {
+    // Faz uma requisição HTTP do tipo GET para a API.
+    final response = await http.get(
+      Uri.parse(
+        'http://gabriel_evarist/manutencao_maquinas_api/public/api/funcionarios',
+      ),
+      headers: {
+        'Accept': 'application/json',
+      },
+    );
+
+    // Verifica se a requisição foi realizada com sucesso.
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erro ${response.statusCode} ao buscar funcionários',
+      );
+    }
+
+    // Converte a resposta da API para JSON.
+    final resultado = jsonDecode(response.body);
+
+    // Obtém diretamente a lista armazenada na propriedade "dados".
+    final List<dynamic> dados = resultado['dados'];
+
+    // Converte os itens para uma lista de mapas.
+    return dados
+        .map(
+          (item) => Map<String, dynamic>.from(item),
+        )
+        .toList();
+  }
+
+  Future<void> salvar() async {
+    // Verifica se os campos do formulário são válidos.
+    if (!formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Monta o JSON com os dados da máquina a ser cadastrada.
+    final dadosMaquina = {
+      'NOME': nomeController.text.trim(),
+      'CODIGO': codigoController.text.trim(),
+      'DESCRICAO': descricaoController.text.trim(),
+      'MODELO': modeloController.text.trim(),
+      'FABRICANTE': fabricanteController.text.trim(),
+      'DATA_AQUISICAO': dataAquisicaoController.text.trim(),
+      'STATUS': statusMaquina,
+      'FK_SETOR_ID': setorSelecionado,
+      'FK_FUNCIONARIO_ID': funcionarioSelecionado,
+    };
+
+    // Indica que os dados estão sendo enviados para a API.
+    setState(() {
+      salvando = true;
+    });
+
+    try {
+      // Faz uma requisição HTTP do tipo POST para a API.
+      final response = await http.post(
+        Uri.parse(
+          'http://gabriel_evarist/manutencao_maquinas_api/public/api/maquinas',
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        // Envia o corpo da requisição como JSON.
+        body: jsonEncode(dadosMaquina),
+      );
+
+      // Converte a resposta da API para JSON.
+      final resultado = response.body.isNotEmpty
+          ? jsonDecode(response.body)
+          : <String, dynamic>{};
+
+      // Verifica se o cadastro foi realizado com sucesso.
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Exibe uma mensagem de sucesso.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              resultado['message'] ??
+                  resultado['mensagem'] ??
+                  'Máquina cadastrada com sucesso',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // Exibe a mensagem de erro retornada pela API.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              resultado['message'] ??
+                  resultado['mensagem'] ??
+                  'Erro ${response.statusCode}: ${response.body}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Exibe uma mensagem caso ocorra erro de conexão.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao acessar a API: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      // Indica que o envio foi finalizado.
+      setState(() {
+        salvando = false;
+      });
     }
   }
 
@@ -58,6 +237,7 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
       lastDate: DateTime.now(),
     );
 
+    // monta a data como yyyy-mm-dd
     if (data != null) {
       dataAquisicaoController.text =
           '${data.year.toString().padLeft(4, '0')}-'
@@ -92,7 +272,8 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
         padding: const EdgeInsets.all(24),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 700),
+            constraints:
+                const BoxConstraints(maxWidth: 700),
             child: Container(
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
@@ -112,12 +293,14 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
               child: Form(
                 key: formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.stretch,
                   children: [
                     const Row(
                       children: [
                         Icon(
-                          Icons.precision_manufacturing_outlined,
+                          Icons
+                              .precision_manufacturing_outlined,
                           color: primaryColor,
                           size: 30,
                         ),
@@ -147,10 +330,12 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
                       maxLength: 200,
                       decoration: campoDecoracao(
                         label: 'Nome da máquina',
-                        icon: Icons.precision_manufacturing_outlined,
+                        icon: Icons
+                            .precision_manufacturing_outlined,
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
+                        if (value == null ||
+                            value.trim().isEmpty) {
                           return 'Informe o nome da máquina';
                         }
 
@@ -166,7 +351,8 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
                         icon: Icons.qr_code_outlined,
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
+                        if (value == null ||
+                            value.trim().isEmpty) {
                           return 'Informe o código da máquina';
                         }
 
@@ -203,12 +389,14 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
-                      controller: dataAquisicaoController,
+                      controller:
+                          dataAquisicaoController,
                       readOnly: true,
                       onTap: selecionarData,
                       decoration: campoDecoracao(
                         label: 'Data de aquisição',
-                        icon: Icons.calendar_month_outlined,
+                        icon:
+                            Icons.calendar_month_outlined,
                       ).copyWith(
                         suffixIcon: const Icon(
                           Icons.date_range_outlined,
@@ -220,9 +408,11 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
                       value: statusMaquina,
                       decoration: campoDecoracao(
                         label: 'Status da máquina',
-                        icon: Icons.monitor_heart_outlined,
+                        icon:
+                            Icons.monitor_heart_outlined,
                       ),
-                      items: statusMaquinas.map((status) {
+                      items:
+                          statusMaquinas.map((status) {
                         return DropdownMenuItem(
                           value: status,
                           child: Text(
@@ -248,16 +438,16 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
+                    DropdownButtonFormField<String>(
                       value: setorSelecionado,
                       decoration: campoDecoracao(
                         label: 'Setor',
                         icon: Icons.apartment_outlined,
                       ),
                       items: setores.map((setor) {
-                        return DropdownMenuItem<int>(
-                          value: setor['id'] as int,
-                          child: Text(setor['nome'] as String),
+                        return DropdownMenuItem<String>(
+                          value: setor['SETOR_ID'].toString(),
+                          child: Text(setor['SETOR_NOME']),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -274,18 +464,19 @@ class _CadastroMaquinasPageState extends State<CadastroMaquinasPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
+                    DropdownButtonFormField<String>(
                       value: funcionarioSelecionado,
                       decoration: campoDecoracao(
-                        label: 'Funcionário responsável',
-                        icon: Icons.engineering_outlined,
+                        label:
+                            'Funcionário responsável',
+                        icon:
+                            Icons.engineering_outlined,
                       ),
-                      items: funcionarios.map((funcionario) {
-                        return DropdownMenuItem<int>(
-                          value: funcionario['id'] as int,
-                          child: Text(
-                            funcionario['nome'] as String,
-                          ),
+                      items:
+                          funcionarios.map((funcionario) {
+                        return DropdownMenuItem<String>(
+                          value: funcionario['FUNCIONARIO_ID'].toString(),
+                          child: Text(funcionario['FUNCIONARIO_NOME']),
                         );
                       }).toList(),
                       onChanged: (value) {
