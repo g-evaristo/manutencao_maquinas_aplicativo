@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // Importar pacote http para fazer requisições HTTP
-import 'dart:convert'; // Importar pacote json para decodificar respostas JSON
+import 'dart:convert';
+
+import 'package:manutencao_maquinas/pages/editar_maquina.dart'; // Importar pacote json para decodificar respostas JSON
 
 class RelatorioMaquinasPage extends StatefulWidget {
   const RelatorioMaquinasPage({super.key});
@@ -68,6 +70,57 @@ class _RelatorioMaquinasPageState extends State<RelatorioMaquinasPage> {
         erro = 'Erro: $e';
         carregando = false;
       });
+    }
+  }
+
+  // Cria uma função assíncrona responsável por excluir um máquina pela API.
+  Future<void> excluirMaquina(dynamic maquinaId) async {
+    try {
+      // Envia uma requisição HTTP do tipo DELETE para a API.
+      final response = await http.delete(
+        // Monta a URL incluindo o ID da máquina que será excluído.
+        Uri.parse(
+          'http://gabriel_evarist/manutencao_maquinas_api/public/api/maquinas/$maquinaId',
+        ),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      // Converte a resposta em um JSON
+      final resultado = response.body.isNotEmpty
+          ? jsonDecode(response.body)
+          : null;
+
+      // Verifica se a exclusão foi concluída com sucesso.
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Exibe uma mensagem informando que a máquina foi excluída.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Máquina excluído com sucesso'),
+          ),
+        );
+
+        await consultarMaquinas(); // Atualiza a lista de máquinas após a exclusão.
+      } else {
+        // Exibe a mensagem de erro retornada pela API.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              // Usa a mensagem da API ou uma mensagem padrão.
+              resultado?['message'] ?? 'Erro ao excluir máquina',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Exibe uma mensagem caso ocorra erro ao acessar a API.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao acessar API: $e'),
+        ),
+      );
     }
   }
 
@@ -218,6 +271,13 @@ class _RelatorioMaquinasPageState extends State<RelatorioMaquinasPage> {
                                   ),
                                 ),
                               ),
+                              // Nova coluna para ações, como editar ou excluir um máquina.
+                              DataColumn(
+                                label: Text(
+                                  'Ações',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ],
 
                             // Cria uma lista de linhas da tabela a partir da lista de máquinas.
@@ -273,6 +333,76 @@ class _RelatorioMaquinasPageState extends State<RelatorioMaquinasPage> {
                                   DataCell(
                                     Text(
                                       maquina['FUNCIONARIO_NOME'].toString(),
+                                    ),
+                                  ),
+                                  // Nova célula para ações, como editar ou excluir um máquina.
+                                  DataCell(
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit),
+                                          // Função assíncrona que será executada quando o botão de editar for pressionado.
+                                          onPressed: () async {
+                                            // Lógica para editar o máquina
+                                            // Salva máquina em uma variável para uso posterior na função de edição.
+                                            final atualizado = await Navigator.push<bool>(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => EditarMaquinaPage(
+                                                  maquina: Map<String, dynamic>.from(maquina),
+                                                ),
+                                              ),
+                                            );
+
+                                            if (atualizado == true) {
+                                              await consultarMaquinas();
+                                            }
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.red),
+                                          // Função assíncrona que será executada quando o botão de excluir for pressionado.
+                                          onPressed: () async {
+                                            // Lógica para excluir o máquina
+                                            // Salva o ID do máquina em uma variável para uso posterior na função de exclusão.
+                                            final id = maquina['MAQUINA_ID'];
+
+                                            // Exibe um diálogo de confirmação antes de excluir o máquina.
+                                            final confirmar = await showDialog<bool>(
+                                              context: context,
+                                              builder: (context) {
+                                                return AlertDialog(
+                                                  title: const Text('Excluir máquina'),
+                                                  content: Text(
+                                                    'Deseja excluir a máquina ${maquina['NOME']}?',
+                                                  ),
+                                                  actions: [
+                                                    // Botão de cancelar que fecha o diálogo e retorna false.  
+                                                    TextButton(
+                                                      onPressed: () {
+                                                        Navigator.pop(context, false);
+                                                      },
+                                                      child: const Text('Cancelar'),
+                                                    ),
+                                                    // Botão de excluir que fecha o diálogo e retorna true.
+                                                    ElevatedButton(
+                                                      onPressed: () {
+                                                        Navigator.pop(context, true);
+                                                      },
+                                                      child: const Text('Excluir'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+                                            
+                                            // Se o usuário confirmar a exclusão, chama a função excluirMaquina passando o ID da máquina.
+                                            if (confirmar == true) {
+                                              await excluirMaquina(id);
+                                            }
+                                          },
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
